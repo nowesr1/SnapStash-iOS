@@ -1,0 +1,16 @@
+/* 
+  Localizable.strings
+  SnapMemoriesSaver
+
+  Created by Nasser on 02/01/2026.
+  
+*/
+"status_start" = "Select memories_history.json to start";
+"status_loaded" = "Loaded %lld memories. Ready to download.";
+"status_error" = "Error parsing JSON: %@";
+"status_complete" = "Download Complete!";
+"import_json" = "Import JSON";
+"download_all" = "Download All";
+"developer_credit" = "Developer Nasser | NoTimeToChill";
+"app_title" = "SnapStash";
+"unknown_year" = "Unknown Date";

@@ -1,0 +1,16 @@
+/* 
+  Localizable.strings
+  SnapMemoriesSaver
+
+  Created by Nasser on 02/01/2026.
+  
+*/
+"status_start" = "اختر ملف memories_history.json للبدء";
+"status_loaded" = "تم تحميل %lld ذكرى. جاهز للتنزيل.";
+"status_error" = "خطأ في تحليل الملف: %@";
+"status_complete" = "تم اكتمال التنزيل!";
+"import_json" = "استيراد JSON";
+"download_all" = "تنزيل الكل";
+"developer_credit" = "المطور Nasser | NoTimeToChill";
+"app_title" = "حفظ السنابات";
+"unknown_year" = "تاريخ غير معروف";

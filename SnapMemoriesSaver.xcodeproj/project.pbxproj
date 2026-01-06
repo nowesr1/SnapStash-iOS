@@ -29,20 +29,23 @@
 		316D7C822F0766BD0049D741 /* SnapMemoriesSaverUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapMemoriesSaverUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		316D7CA32F0780610049D741 /* Exceptions for "SnapMemoriesSaver" folder in "SnapMemoriesSaver" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 316D7C6A2F0766BB0049D741 /* SnapMemoriesSaver */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		316D7C6D2F0766BB0049D741 /* SnapMemoriesSaver */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				316D7CA32F0780610049D741 /* Exceptions for "SnapMemoriesSaver" folder in "SnapMemoriesSaver" target */,
+			);
 			path = SnapMemoriesSaver;
-			sourceTree = "<group>";
-		};
-		316D7C7B2F0766BC0049D741 /* SnapMemoriesSaverTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = SnapMemoriesSaverTests;
-			sourceTree = "<group>";
-		};
-		316D7C852F0766BD0049D741 /* SnapMemoriesSaverUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = SnapMemoriesSaverUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -76,8 +79,6 @@
 			isa = PBXGroup;
 			children = (
 				316D7C6D2F0766BB0049D741 /* SnapMemoriesSaver */,
-				316D7C7B2F0766BC0049D741 /* SnapMemoriesSaverTests */,
-				316D7C852F0766BD0049D741 /* SnapMemoriesSaverUITests */,
 				316D7C6C2F0766BB0049D741 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -130,9 +131,6 @@
 			dependencies = (
 				316D7C7A2F0766BC0049D741 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				316D7C7B2F0766BC0049D741 /* SnapMemoriesSaverTests */,
-			);
 			name = SnapMemoriesSaverTests;
 			packageProductDependencies = (
 			);
@@ -152,9 +150,6 @@
 			);
 			dependencies = (
 				316D7C842F0766BD0049D741 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				316D7C852F0766BD0049D741 /* SnapMemoriesSaverUITests */,
 			);
 			name = SnapMemoriesSaverUITests;
 			packageProductDependencies = (
@@ -192,6 +187,7 @@
 			knownRegions = (
 				en,
 				Base,
+				ar,
 			);
 			mainGroup = 316D7C622F0766BB0049D741;
 			minimizedProjectReferenceProxies = 1;
@@ -400,17 +396,22 @@
 				DEVELOPMENT_TEAM = UKY862SD5D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnapMemoriesSaver/Info.plist;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save Snapchat memories.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We nedd this to allow you save your memories to your device";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = twitter.nowesr1.SnapMemoriesSaver;
+				PRODUCT_BUNDLE_IDENTIFIER = twitter.nowesr1.snapstach;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -428,17 +429,22 @@
 				DEVELOPMENT_TEAM = UKY862SD5D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnapMemoriesSaver/Info.plist;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save Snapchat memories.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We nedd this to allow you save your memories to your device";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = twitter.nowesr1.SnapMemoriesSaver;
+				PRODUCT_BUNDLE_IDENTIFIER = twitter.nowesr1.snapstach;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
