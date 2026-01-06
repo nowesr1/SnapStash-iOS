@@ -3,12 +3,6 @@
 
   <h1>SnapStash iOS</h1>
 
-  <p>
-    <strong>SnapStash</strong> تطبيق iOS يساعدك على <strong>تنزيل وحفظ ذكريات سناب</strong> من ملف
-    <strong>JSON</strong> الرسمي الذي تقوم بطلبه من داخل سناب شات عبر مسار:
-    <br />
-    <strong>الإعدادات → بياناتي (My Data)</strong>
-  </p>
 
   <hr />
 
@@ -21,6 +15,7 @@
 
   <h2>📌 طريقة الاستخدام</h2>
   <ol>
+      <li>شاهد الخطوات كاملة فيديو https://vt.tiktok.com/ZS5aWvfMB/.</li>
     <li>اطلب ملف بياناتك من داخل سناب:
       <strong>الإعدادات → بياناتي (My Data)</strong>.
     </li>
@@ -73,6 +68,7 @@
 
   <h2>📌 How to Use</h2>
   <ol>
+      <li>watch full steps video https://vt.tiktok.com/ZS5aWvfMB/.</li>
     <li>Request your data from Snapchat:
       <strong>Settings → My Data</strong>.
     </li>
