@@ -4,14 +4,13 @@
 //
 //  Created by Nasser Alsobeie on 02/01/2026.
 //
-
 import SwiftUI
 import AVKit
 import Photos
 import UniformTypeIdentifiers
 import MobileCoreServices
 
-struct SnapchatData: Codable {
+struct SnapchatData: Codable, Sendable {
     let savedMedia: [Memory]
     
     enum CodingKeys: String, CodingKey {
@@ -19,17 +18,19 @@ struct SnapchatData: Codable {
     }
 }
 
-struct Memory: Codable, Identifiable, Equatable {
+struct Memory: Codable, Identifiable, Equatable, Hashable, Sendable {
     let id: UUID
     let date: String
     let mediaType: String
     let downloadLink: String
+    let mediaDownloadUrl: String?
     
-    init(id: UUID = UUID(), date: String, mediaType: String, downloadLink: String) {
+    init(id: UUID = UUID(), date: String, mediaType: String, downloadLink: String, mediaDownloadUrl: String? = nil) {
         self.id = id
         self.date = date
         self.mediaType = mediaType
         self.downloadLink = downloadLink
+        self.mediaDownloadUrl = mediaDownloadUrl
     }
     
     enum CodingKeys: String, CodingKey {
@@ -37,6 +38,7 @@ struct Memory: Codable, Identifiable, Equatable {
         case date = "Date"
         case mediaType = "Media Type"
         case downloadLink = "Download Link"
+        case mediaDownloadUrl = "Media Download Url"
     }
     
     init(from decoder: Decoder) throws {
@@ -45,40 +47,115 @@ struct Memory: Codable, Identifiable, Equatable {
         self.date = try container.decode(String.self, forKey: .date)
         self.mediaType = try container.decode(String.self, forKey: .mediaType)
         self.downloadLink = try container.decode(String.self, forKey: .downloadLink)
+        self.mediaDownloadUrl = try container.decodeIfPresent(String.self, forKey: .mediaDownloadUrl)
     }
     
     var isVideo: Bool {
         return mediaType.lowercased() == "video"
     }
     
-    var dateObject: Date {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss 'UTC'"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        return formatter.date(from: date) ?? Date.distantPast
-    }
-    
     var year: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy"
-        return formatter.string(from: dateObject)
+        return String(date.prefix(4))
     }
     
     var month: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM"
-        return formatter.string(from: dateObject)
+        let start = date.index(date.startIndex, offsetBy: 5)
+        let end = date.index(date.startIndex, offsetBy: 7)
+        let monthNum = String(date[start..<end])
+        return MonthNameHelper.name(for: monthNum)
+    }
+    
+    var effectiveUrl: URL? {
+        if let direct = mediaDownloadUrl, let url = URL(string: direct) {
+            return url
+        }
+        return URL(string: downloadLink)
+    }
+}
+
+struct MonthNameHelper {
+    static func name(for number: String) -> String {
+        switch number {
+        case "01": return "January"; case "02": return "February"; case "03": return "March"
+        case "04": return "April";   case "05": return "May";      case "06": return "June"
+        case "07": return "July";    case "08": return "August";   case "09": return "September"
+        case "10": return "October"; case "11": return "November"; case "12": return "December"
+        default: return number
+        }
+    }
+}
+
+struct YearSection: Identifiable, Equatable, Sendable {
+    var id: String { year }
+    let year: String
+    let months: [MonthSection]
+}
+
+struct MonthSection: Identifiable, Equatable, Sendable {
+    var id: String { name }
+    let name: String
+    let memories: [Memory]
+}
+
+@MainActor
+class ThumbnailLoader: ObservableObject {
+    @Published var image: UIImage? = nil
+    @Published var isLoading = false
+    private var task: Task<Void, Never>?
+    
+    func load(for memory: Memory, fileURL: URL?) {
+        guard image == nil else { return }
+        
+        let targetURL = fileURL ?? memory.effectiveUrl
+        guard let url = targetURL else { return }
+        
+        task?.cancel()
+        isLoading = true
+        
+        task = Task.detached(priority: .userInitiated) {
+            var loadedImage: UIImage? = nil
+            
+            if memory.isVideo {
+                let asset = AVURLAsset(url: url)
+                let gen = AVAssetImageGenerator(asset: asset)
+                gen.appliesPreferredTrackTransform = true
+                gen.maximumSize = CGSize(width: 200, height: 200)
+                
+                do {
+                    if #available(iOS 16.0, *) {
+                        let (cgImage, _) = try await gen.image(at: .zero)
+                        loadedImage = UIImage(cgImage: cgImage)
+                    } else {
+                        let cgImage = try gen.copyCGImage(at: .zero, actualTime: nil)
+                        loadedImage = UIImage(cgImage: cgImage)
+                    }
+                } catch { }
+            } else {
+                if let data = try? Data(contentsOf: url) {
+                    loadedImage = UIImage(data: data)
+                }
+            }
+            
+            if !Task.isCancelled {
+                let finalImage = loadedImage
+                await MainActor.run {
+                    self.image = finalImage
+                    self.isLoading = false
+                }
+            }
+        }
     }
 }
 
 @MainActor
 class DownloadManager: ObservableObject {
-    @Published var memories: [Memory] = []
+    @Published var sections: [YearSection] = []
+    @Published var allMemories: [Memory] = []
     @Published var downloadedFiles: [String: URL] = [:]
     @Published var isDownloading = false
     @Published var progress: Double = 0.0
     @Published var statusMessage: String = "Import JSON to start"
+    @Published var isProcessing = false
     
     private let fileManager = FileManager.default
     
@@ -95,26 +172,32 @@ class DownloadManager: ObservableObject {
     }
     
     private func saveToDisk() {
-        do {
-            let data = try JSONEncoder().encode(memories)
-            try data.write(to: persistenceFile)
-        } catch {
-            print("Failed to save memories list: \(error)")
+        let memoriesToSave = self.allMemories
+        let file = self.persistenceFile
+        Task.detached {
+            do {
+                let data = try JSONEncoder().encode(memoriesToSave)
+                try data.write(to: file)
+            } catch { }
         }
     }
     
     private func loadFromDisk() {
         if let data = try? Data(contentsOf: persistenceFile),
            let savedMemories = try? JSONDecoder().decode([Memory].self, from: data) {
-            self.memories = savedMemories
-            self.statusMessage = "Loaded \(savedMemories.count) memories from storage."
+            Task {
+                let processedSections = await DownloadManager.processMemories(savedMemories)
+                self.sections = processedSections
+                self.allMemories = savedMemories
+                self.refreshDownloadedFiles()
+                self.statusMessage = "Loaded \(savedMemories.count) memories from storage."
+            }
         }
-        refreshDownloadedFiles()
     }
     
     private func refreshDownloadedFiles() {
         var tempMap: [String: URL] = [:]
-        for memory in memories {
+        for memory in allMemories {
             let fileURL = getLocalFileURL(for: memory)
             if fileManager.fileExists(atPath: fileURL.path) {
                 tempMap[memory.date] = fileURL
@@ -131,68 +214,147 @@ class DownloadManager: ObservableObject {
     }
 
     func loadJSON(url: URL) {
-        do {
-            let accessing = url.startAccessingSecurityScopedResource()
-            let data = try Data(contentsOf: url)
-            if accessing { url.stopAccessingSecurityScopedResource() }
-            
-            let decoder = JSONDecoder()
-            let result = try decoder.decode(SnapchatData.self, from: data)
-            
-            self.memories = result.savedMedia.sorted(by: { $0.dateObject > $1.dateObject })
-            saveToDisk()
-            refreshDownloadedFiles()
-            
-            self.statusMessage = "Imported \(memories.count) memories. Ready to download."
-        } catch {
-            self.statusMessage = "Error parsing JSON: \(error.localizedDescription)"
+        isProcessing = true
+        statusMessage = "Processing..."
+        
+        Task {
+            do {
+                var data: Data?
+                if url.startAccessingSecurityScopedResource() {
+                    data = try Data(contentsOf: url)
+                    url.stopAccessingSecurityScopedResource()
+                } else {
+                    data = try Data(contentsOf: url)
+                }
+                
+                guard let jsonData = data else {
+                    self.statusMessage = "Failed to read file"
+                    self.isProcessing = false
+                    return
+                }
+                
+                let result = try JSONDecoder().decode(SnapchatData.self, from: jsonData)
+                let rawMemories = result.savedMedia
+                
+                let processedSections = await DownloadManager.processMemories(rawMemories)
+                
+                self.sections = processedSections
+                self.allMemories = rawMemories
+                self.saveToDisk()
+                self.refreshDownloadedFiles()
+                self.statusMessage = "Imported \(rawMemories.count) memories. Ready to download."
+                self.isProcessing = false
+                
+            } catch {
+                self.statusMessage = "Error: \(error.localizedDescription)"
+                self.isProcessing = false
+            }
         }
     }
     
+    private static func processMemories(_ rawMemories: [Memory]) async -> [YearSection] {
+        let groupedByYear = Dictionary(grouping: rawMemories, by: { $0.year })
+        let sortedYears = groupedByYear.keys.sorted(by: >)
+        
+        var newSections: [YearSection] = []
+        
+        for year in sortedYears {
+            let memoriesInYear = groupedByYear[year]!
+            let groupedByMonth = Dictionary(grouping: memoriesInYear, by: { $0.month })
+            
+            let sortedMonthNames = groupedByMonth.keys.sorted { m1, m2 in
+                let d1 = groupedByMonth[m1]?.first?.date ?? ""
+                let d2 = groupedByMonth[m2]?.first?.date ?? ""
+                return d1 > d2
+            }
+            
+            var monthSections: [MonthSection] = []
+            for month in sortedMonthNames {
+                let items = groupedByMonth[month] ?? []
+                monthSections.append(MonthSection(name: month, memories: items))
+            }
+            
+            newSections.append(YearSection(year: year, months: monthSections))
+        }
+        return newSections
+    }
+    
     func startDownload() {
-        guard !memories.isEmpty else { return }
+        guard !allMemories.isEmpty else { return }
         isDownloading = true
         progress = 0.0
         
         Task {
-            var completedCount = 0
+            let total = Double(allMemories.count)
+            var currentProgress = 0.0
+            let maxConcurrent = 5
+            var iterator = allMemories.makeIterator()
             
-            for memory in memories {
-                await downloadSingleMemory(memory)
-                completedCount += 1
-                self.progress = Double(completedCount) / Double(memories.count)
+            await withTaskGroup(of: URL?.self) { group in
+                for _ in 0..<maxConcurrent {
+                    if let next = iterator.next() {
+                        group.addTask { await self.downloadSingleMemory(next) }
+                    }
+                }
+                
+                for await url in group {
+                    currentProgress += 1
+                    let prog = currentProgress / total
+                    
+                    await MainActor.run {
+                        self.progress = prog
+                        if let validUrl = url {
+                            
+                            if let mem = self.allMemories.first(where: { self.getLocalFileURL(for: $0) == validUrl }) {
+                                self.downloadedFiles[mem.date] = validUrl
+                            }
+                        }
+                    }
+                    
+                    if let next = iterator.next() {
+                        group.addTask { await self.downloadSingleMemory(next) }
+                    }
+                }
             }
             
             self.isDownloading = false
             self.statusMessage = "Download Complete!"
-            refreshDownloadedFiles()
+            self.refreshDownloadedFiles()
         }
     }
     
-    private func downloadSingleMemory(_ memory: Memory) async {
+    private func downloadSingleMemory(_ memory: Memory) async -> URL? {
         let fileURL = getLocalFileURL(for: memory)
         
         if fileManager.fileExists(atPath: fileURL.path) {
-            return
+            return fileURL
         }
         
-        guard let postURL = URL(string: memory.downloadLink) else { return }
-        var request = URLRequest(url: postURL)
-        request.httpMethod = "POST"
+        guard let urlStr = memory.effectiveUrl?.absoluteString, let url = URL(string: urlStr) else { return nil }
+        
+        var request = URLRequest(url: url)
+        if memory.mediaDownloadUrl == nil {
+            request.httpMethod = "POST"
+        }
         
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            guard let realLink = String(data: data, encoding: .utf8),
-                  let downloadURL = URL(string: realLink) else { return }
+            let (downloadUrl, _) : (URL, URLResponse)
             
-            let (mediaData, _) = try await URLSession.shared.data(from: downloadURL)
-            try mediaData.write(to: fileURL)
-            
-            await MainActor.run {
-                self.downloadedFiles[memory.date] = fileURL
+            if memory.mediaDownloadUrl != nil {
+                downloadUrl = url
+            } else {
+                let (data, _) = try await URLSession.shared.data(for: request)
+                guard let realLink = String(data: data, encoding: .utf8),
+                      let realURL = URL(string: realLink) else { return nil }
+                downloadUrl = realURL
             }
+            
+            let (mediaData, _) = try await URLSession.shared.data(from: downloadUrl)
+            try mediaData.write(to: fileURL)
+            return fileURL
+            
         } catch {
-            print("Failed to download: \(error)")
+            return nil
         }
     }
 }
@@ -259,7 +421,14 @@ struct ContentView: View {
                     .padding(.vertical, 20)
                     .background(Color(UIColor.secondarySystemGroupedBackground))
                     
-                    if manager.memories.isEmpty {
+                    if manager.isProcessing {
+                        VStack {
+                            Spacer()
+                            ProgressView()
+                            Text("Processing Data...").padding(.top)
+                            Spacer()
+                        }
+                    } else if manager.sections.isEmpty {
                         emptyStateView
                     } else {
                         memoryListView
@@ -282,31 +451,19 @@ struct ContentView: View {
     }
     
     var memoryListView: some View {
-        let groupedByYear = Dictionary(grouping: manager.memories, by: { $0.year })
-        let sortedYears = groupedByYear.keys.sorted(by: >)
-        
-        return List {
-            ForEach(sortedYears, id: \.self) { year in
-                Section(header: Text(year).font(.headline)) {
-                    
-                    let memoriesInYear = groupedByYear[year]!
-                    let groupedByMonth = Dictionary(grouping: memoriesInYear, by: { $0.month })
-                    let sortedMonths = groupedByMonth.keys.sorted { m1, m2 in
-                        let d1 = memoriesInYear.first(where: { $0.month == m1 })?.dateObject ?? Date.distantPast
-                        let d2 = memoriesInYear.first(where: { $0.month == m2 })?.dateObject ?? Date.distantPast
-                        return d1 > d2
-                    }
-                    
-                    ForEach(sortedMonths, id: \.self) { month in
+        List {
+            ForEach(manager.sections, id: \.id) { yearSection in
+                Section(header: Text(yearSection.year).font(.headline)) {
+                    ForEach(yearSection.months, id: \.id) { monthSection in
                         VStack(alignment: .leading) {
-                            Text(month)
+                            Text(monthSection.name)
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .padding(.top, 5)
                             
                             ScrollView(.horizontal, showsIndicators: false) {
                                 LazyHStack(spacing: 10) {
-                                    ForEach(groupedByMonth[month]!) { memory in
+                                    ForEach(monthSection.memories, id: \.id) { memory in
                                         MemoryThumbnail(memory: memory, fileURL: manager.downloadedFiles[memory.date])
                                             .onTapGesture {
                                                 if manager.downloadedFiles[memory.date] != nil {
@@ -353,7 +510,7 @@ struct ContentView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.large)
                 
-                if !manager.memories.isEmpty && !manager.isDownloading {
+                if !manager.allMemories.isEmpty && !manager.isDownloading {
                     Button(action: { manager.startDownload() }) {
                         HStack {
                             Image(systemName: "arrow.down.circle.fill")
@@ -381,20 +538,22 @@ struct ContentView: View {
 struct MemoryThumbnail: View {
     let memory: Memory
     let fileURL: URL?
-    @State private var thumbnail: UIImage? = nil
+    @StateObject private var thumbLoader = ThumbnailLoader()
     
     var body: some View {
         ZStack {
             if let url = fileURL {
                 if memory.isVideo {
-                    if let thumb = thumbnail {
+                    if let thumb = thumbLoader.image {
                         Image(uiImage: thumb)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                     } else {
                         ZStack {
                             Color.black.opacity(0.8)
-                            ProgressView().tint(.white)
+                            if thumbLoader.isLoading {
+                                ProgressView().tint(.white)
+                            }
                         }
                     }
                     ZStack {
@@ -421,23 +580,8 @@ struct MemoryThumbnail: View {
         .frame(width: 100, height: 150)
         .cornerRadius(8)
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2)))
-        .task {
-            if memory.isVideo, let url = fileURL, thumbnail == nil {
-                self.thumbnail = await generateVideoThumbnail(url: url)
-            }
-        }
-    }
-    
-    func generateVideoThumbnail(url: URL) async -> UIImage? {
-        let asset = AVAsset(url: url)
-        let generator = AVAssetImageGenerator(asset: asset)
-        generator.appliesPreferredTrackTransform = true
-        let time = CMTime(seconds: 0.5, preferredTimescale: 60)
-        do {
-            let imgRef = try generator.copyCGImage(at: time, actualTime: nil)
-            return UIImage(cgImage: imgRef)
-        } catch {
-            return nil
+        .onAppear {
+            thumbLoader.load(for: memory, fileURL: fileURL)
         }
     }
 }
@@ -495,7 +639,7 @@ struct MediaDetailView: View {
                 }
             }
             .alert(isPresented: $showSaveAlert) {
-                Alert(title: Text("Saved"), message: Text("Saved as New to Recents."), dismissButton: .default(Text("OK")))
+                Alert(title: Text("Saved"), message: Text("Saved Successfully."), dismissButton: .default(Text("OK")))
             }
             .sheet(isPresented: $showShareSheet) {
                 if let url = fileURL {
